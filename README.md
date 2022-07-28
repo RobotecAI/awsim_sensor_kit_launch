@@ -1,1 +1,1 @@
-# sample_sensor_kit_launch
+# awsim_sensor_kit_launch

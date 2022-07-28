@@ -59,36 +59,6 @@ def launch_setup(context, *args, **kwargs):
 
     nodes = []
 
-    # turn packets into pointcloud as in
-    # https://github.com/ros-drivers/velodyne/blob/ros2/velodyne_pointcloud/launch/velodyne_convert_node-VLP16-composed-launch.py
-    nodes.append(
-        ComposableNode(
-            package="velodyne_pointcloud",
-            plugin="velodyne_pointcloud::Convert",
-            name="velodyne_convert_node",
-            parameters=[
-                {
-                    **create_parameter_dict(
-                        "calibration",
-                        "min_range",
-                        "max_range",
-                        "num_points_thresholds",
-                        "invalid_intensity",
-                        "frame_id",
-                        "scan_phase",
-                        "view_direction",
-                        "view_width",
-                    ),
-                }
-            ],
-            remappings=[
-                ("velodyne_points", "pointcloud_raw"),
-                ("velodyne_points_ex", "pointcloud_raw_ex"),
-            ],
-            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
-        )
-    )
-
     cropbox_parameters = create_parameter_dict("input_frame", "output_frame")
     cropbox_parameters["negative"] = True
 
@@ -139,21 +109,6 @@ def launch_setup(context, *args, **kwargs):
     nodes.append(
         ComposableNode(
             package="pointcloud_preprocessor",
-            plugin="pointcloud_preprocessor::DistortionCorrectorComponent",
-            name="distortion_corrector_node",
-            remappings=[
-                ("~/input/twist", "/sensing/vehicle_velocity_converter/twist_with_covariance"),
-                ("~/input/imu", "/sensing/imu/imu_data"),
-                ("~/input/pointcloud", "mirror_cropped/pointcloud_ex"),
-                ("~/output/pointcloud", "rectified/pointcloud_ex"),
-            ],
-            extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
-        )
-    )
-
-    nodes.append(
-        ComposableNode(
-            package="pointcloud_preprocessor",
             plugin="pointcloud_preprocessor::RingOutlierFilterComponent",
             name="ring_outlier_filter",
             remappings=[
@@ -174,39 +129,45 @@ def launch_setup(context, *args, **kwargs):
         composable_node_descriptions=nodes,
     )
 
-    driver_component = ComposableNode(
-        package="velodyne_driver",
-        plugin="velodyne_driver::VelodyneDriver",
-        # node is created in a global context, need to avoid name clash
-        name="velodyne_driver",
-        parameters=[
-            {
-                **create_parameter_dict(
-                    "device_ip",
-                    "gps_time",
-                    "read_once",
-                    "read_fast",
-                    "repeat_delay",
-                    "frame_id",
-                    "model",
-                    "rpm",
-                    "port",
-                    "pcap",
-                    "scan_phase",
-                ),
-            }
+    distortion_component = ComposableNode(
+        package="pointcloud_preprocessor",
+        plugin="pointcloud_preprocessor::DistortionCorrectorComponent",
+        name="distortion_corrector_node",
+        remappings=[
+            ("~/input/twist", "/sensing/vehicle_velocity_converter/twist_with_covariance"),
+            ("~/input/imu", "/sensing/imu/imu_data"),
+            ("~/input/pointcloud", "mirror_cropped/pointcloud_ex"),
+            ("~/output/pointcloud", "rectified/pointcloud_ex"),
         ],
+        extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
+    )
+
+    distortion_relay_component = ComposableNode(
+        package="topic_tools",
+        plugin="topic_tools::RelayNode",
+        name="pointcloud_distortion_relay",
+        namespace="",
+        parameters=[
+            {"input_topic": "mirror_cropped/pointcloud_ex"},
+            {"output_topic": "rectified/pointcloud_ex"}
+        ],
+        extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
     )
 
     # one way to add a ComposableNode conditional on a launch argument to a
     # container. The `ComposableNode` itself doesn't accept a condition
-    loader = LoadComposableNodes(
-        composable_node_descriptions=[driver_component],
+    distortion_loader = LoadComposableNodes(
+        composable_node_descriptions=[distortion_component],
         target_container=container,
-        condition=launch.conditions.IfCondition(LaunchConfiguration("launch_driver")),
+        condition=launch.conditions.IfCondition(LaunchConfiguration("use_distortion_corrector")),
+    )
+    distortion_relay_loader = LoadComposableNodes(
+        composable_node_descriptions=[distortion_relay_component],
+        target_container=container,
+        condition=launch.conditions.UnlessCondition(LaunchConfiguration("use_distortion_corrector")),
     )
 
-    return [container, loader]
+    return [container, distortion_loader, distortion_relay_loader]
 
 
 def generate_launch_description():
@@ -218,29 +179,8 @@ def generate_launch_description():
             DeclareLaunchArgument(name, default_value=default_value, description=description)
         )
 
-    add_launch_arg("model", description="velodyne model name")
-    add_launch_arg("launch_driver", "True", "do launch driver")
-    add_launch_arg("calibration", description="path to calibration file")
-    add_launch_arg("device_ip", "192.168.1.201", "device ip address")
-    add_launch_arg("scan_phase", "0.0")
     add_launch_arg("base_frame", "base_link", "base frame id")
     add_launch_arg("container_name", "velodyne_composable_node_container", "container name")
-    add_launch_arg("min_range", description="minimum view range")
-    add_launch_arg("max_range", description="maximum view range")
-    add_launch_arg("pcap", "")
-    add_launch_arg("port", "2368", description="device port number")
-    add_launch_arg("read_fast", "False")
-    add_launch_arg("read_once", "False")
-    add_launch_arg("repeat_delay", "0.0")
-    add_launch_arg("rpm", "600.0", "rotational frequency")
-    add_launch_arg("laserscan_ring", "-1")
-    add_launch_arg("laserscan_resolution", "0.007")
-    add_launch_arg("num_points_thresholds", "300")
-    add_launch_arg("invalid_intensity")
-    add_launch_arg("frame_id", "velodyne", "velodyne frame id")
-    add_launch_arg("gps_time", "False")
-    add_launch_arg("view_direction", description="the center of lidar angle")
-    add_launch_arg("view_width", description="lidar angle: 0~6.28 [rad]")
     add_launch_arg("input_frame", LaunchConfiguration("base_frame"), "use for cropbox")
     add_launch_arg("output_frame", LaunchConfiguration("base_frame"), "use for cropbox")
     add_launch_arg(
