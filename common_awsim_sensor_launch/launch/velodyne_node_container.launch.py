@@ -22,7 +22,10 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.actions import LoadComposableNodes
 from launch_ros.descriptions import ComposableNode
+from launch_ros.parameter_descriptions import ParameterFile
 import yaml
+from ament_index_python.packages import get_package_share_directory
+from pathlib import Path
 
 
 def get_vehicle_info(context):
@@ -106,6 +109,20 @@ def launch_setup(context, *args, **kwargs):
         )
     )
 
+    ring_outlier_filter_node_param = ParameterFile(
+        param_file=LaunchConfiguration("ring_outlier_filter_node_param_path").perform(
+            context
+        ),
+        allow_substs=True,
+    )
+
+    # Ring Outlier Filter is the last component in the pipeline, so control the output frame here
+    if LaunchConfiguration("output_as_sensor_frame").perform(context).lower() == "true":
+        ring_outlier_output_frame = {"output_frame": LaunchConfiguration("frame_id")}
+    else:
+        # keep the output frame as the input frame
+        ring_outlier_output_frame = {"output_frame": ""}
+
     nodes.append(
         ComposableNode(
             package="autoware_pointcloud_preprocessor",
@@ -115,6 +132,7 @@ def launch_setup(context, *args, **kwargs):
                 ("input", "rectified/pointcloud_ex"),
                 ("output", "pointcloud"),
             ],
+            parameters=[ring_outlier_filter_node_param, ring_outlier_output_frame],
             extra_arguments=[{"use_intra_process_comms": LaunchConfiguration("use_intra_process")}],
         )
     )
@@ -179,6 +197,10 @@ def generate_launch_description():
             DeclareLaunchArgument(name, default_value=default_value, description=description)
         )
 
+    common_sensor_share_dir = Path(
+        get_package_share_directory("common_awsim_sensor_launch")
+    )
+
     add_launch_arg("base_frame", "base_link", "base frame id")
     add_launch_arg("container_name", "velodyne_composable_node_container", "container name")
     add_launch_arg("input_frame", LaunchConfiguration("base_frame"), "use for cropbox")
@@ -188,6 +210,13 @@ def generate_launch_description():
     )
     add_launch_arg("use_multithread", "False", "use multithread")
     add_launch_arg("use_intra_process", "False", "use ROS2 component container communication")
+    add_launch_arg("output_as_sensor_frame", "False", "output final pointcloud in sensor frame")
+    add_launch_arg("frame_id", "base_link", "frame id")
+    add_launch_arg(
+        "ring_outlier_filter_node_param_path",
+        str(common_sensor_share_dir / "config" / "ring_outlier_filter_node.param.yaml"),
+        description="path to parameter file of ring outlier filter node",
+    )
 
     set_container_executable = SetLaunchConfiguration(
         "container_executable",
