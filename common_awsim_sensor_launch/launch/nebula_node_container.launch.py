@@ -25,9 +25,7 @@ from launch_ros.actions import LoadComposableNodes
 from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterFile
 from launch_ros.substitutions import FindPackageShare
-import os
 import yaml
-from ament_index_python.packages import get_package_share_directory
 from pathlib import Path
 
 def get_lidar_make(sensor_name):
@@ -74,18 +72,19 @@ def launch_setup(context, *args, **kwargs):
     # Model and make
     sensor_model = LaunchConfiguration("sensor_model").perform(context)
     sensor_make, sensor_extension = get_lidar_make(sensor_model)
-    nebula_decoders_share_dir = get_package_share_directory("nebula_decoders")
+    nebula_decoders_share_dir = Path(get_package_share_directory("nebula_decoders"))
 
     # Calibration file
-    sensor_calib_fp = os.path.join(
-        nebula_decoders_share_dir,
-        "calibration",
-        sensor_make.lower(),
-        sensor_model + sensor_extension,
+    sensor_calib_fp = (
+        nebula_decoders_share_dir
+        / "calibration"
+        / sensor_make.lower()
+        / (sensor_model + sensor_extension)
     )
-    assert os.path.exists(
-        sensor_calib_fp
-    ), "Sensor calib file under calibration/ was not found: {}".format(sensor_calib_fp)
+    assert (
+        sensor_calib_fp.exists()
+    ), f"Sensor calib file under calibration/ was not found: {sensor_calib_fp}"
+    sensor_calib_fp = str(sensor_calib_fp)
 
     nodes = []
 
