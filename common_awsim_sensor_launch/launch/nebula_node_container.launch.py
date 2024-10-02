@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import launch
-from ament_index_python.packages import get_package_share_directory
 from launch.actions import DeclareLaunchArgument
 from launch.actions import OpaqueFunction
 from launch.actions import SetLaunchConfiguration
@@ -26,6 +25,7 @@ from launch_ros.descriptions import ComposableNode
 from launch_ros.parameter_descriptions import ParameterFile
 from launch_ros.substitutions import FindPackageShare
 import yaml
+from ament_index_python.packages import get_package_share_directory
 from pathlib import Path
 
 def get_lidar_make(sensor_name):
