@@ -365,13 +365,13 @@ def generate_launch_description():
         "vehicle_mirror_param_file", description="path to the file of vehicle mirror position yaml"
     )
     add_launch_arg("use_multithread", "False", "use multithread")
+    add_launch_arg("use_intra_process", "False", "use ROS 2 component container communication")
     add_launch_arg("output_as_sensor_frame", "False", "output final pointcloud in sensor frame")
     add_launch_arg("frame_id", "base_link", "frame id")
     add_launch_arg(
         "ring_outlier_filter_node_param_path",
         str(common_sensor_share_dir / "config" / "ring_outlier_filter_node.param.yaml"),
         description="path to parameter file of ring outlier filter node")
-    add_launch_arg("use_intra_process", "False", "use ROS 2 component container communication")
     add_launch_arg("container_name", "nebula_node_container")
     add_launch_arg("ptp_profile", "1588v2")
     add_launch_arg("ptp_transport_type", "L2")
