@@ -17,7 +17,7 @@
   <arg name="vehicle_mirror_param_file"/>
   <arg name="container_name" default="velodyne_node_container"/>
 
-  <include file="$(find-pkg-share common_awsim_sensor_launch)/launch/nebula_node_container.launch.py">
+  <include file="$(find-pkg-share common_sensor_launch)/launch/nebula_node_container.launch.py">
     <arg name="launch_driver" value="$(var launch_driver)"/>
     <arg name="sensor_model" value="$(var model)"/>
     <arg name="return_mode" value="$(var return_mode)"/>
